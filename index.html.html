@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memento — Analiza Sieci Postaci</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0c0a;
+    --bg2: #161310;
+    --bg3: #1e1a16;
+    --panel: #13110f;
+    --border: #3a3025;
+    --text: #d4c9b0;
+    --text-dim: #7a6e5a;
+    --text-bright: #f0e6cc;
+    --accent: #c8a96e;
+    --accent2: #8b5e3c;
+    --red: #b84a3a;
+    --green: #7a9e6a;
+    --purple: #7a5e9e;
+    --c0: #c8a96e;
+    --c1: #7a9e6a;
+    --c2: #7a5e9e;
+    --shadow: rgba(0,0,0,0.7);
+    --grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    --font-display: 'Special Elite', cursive;
+    --font-mono: 'Share Tech Mono', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-mono); overflow-x: hidden; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: var(--grain);
+    opacity: 0.6;
+  }
+
+  /* Scratched film effect */
+  body::after {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent,
+      transparent 49px,
+      rgba(200,169,110,0.015) 50px,
+      rgba(200,169,110,0.015) 51px
+    );
+  }
+
+  header {
+    position: relative; z-index: 10;
+    border-bottom: 1px solid var(--border);
+    padding: 18px 28px 14px;
+    background: linear-gradient(180deg, rgba(20,16,12,0.98) 0%, rgba(14,12,10,0.9) 100%);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    flex-wrap: wrap; gap: 8px;
+  }
+  header .title-block {}
+  header h1 {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 4vw, 2.8rem);
+    color: var(--text-bright);
+    letter-spacing: 0.12em;
+    text-shadow: 0 0 40px rgba(200,169,110,0.3), 2px 2px 0 rgba(0,0,0,0.8);
+    line-height: 1;
+  }
+  header h1 span { color: var(--accent); }
+  header .subtitle {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  header .stats-pill {
+    display: flex; gap: 16px; align-items: center;
+    font-size: 0.7rem; color: var(--text-dim);
+    letter-spacing: 0.1em;
+  }
+  header .stats-pill span { color: var(--accent); font-size: 0.9rem; margin-right: 3px; }
+
+  .main-layout {
+    position: relative; z-index: 5;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    grid-template-rows: calc(100vh - 80px);
+    height: calc(100vh - 80px);
+  }
+
+  /* ========== LEFT: GRAPH PANEL ========== */
+  .graph-panel {
+    position: relative;
+    background: var(--bg);
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+
+  /* Vignette */
+  .graph-panel::after {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(10,8,6,0.7) 100%);
+  }
+
+  .mode-controls {
+    position: absolute; top: 14px; left: 14px; z-index: 10;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .mode-btn {
+    background: rgba(20,16,12,0.85);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.15em;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: all 0.25s;
+    text-transform: uppercase;
+    backdrop-filter: blur(4px);
+  }
+  .mode-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .mode-btn.active { background: var(--accent2); border-color: var(--accent); color: var(--text-bright); }
+  .mode-btn--community { border-color: #5a4a7a; color: #9a7abe; }
+  .mode-btn--community:hover { border-color: #9a7abe; color: #c0a0e8; }
+  .mode-btn--community.active { background: #3a2858; border-color: #9a7abe; color: #e0c8ff; }
+
+  #graph-svg { width: 100%; height: 100%; display: block; }
+
+  .tooltip {
+    position: fixed; pointer-events: none; z-index: 100;
+    background: rgba(14,12,10,0.95);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--text);
+    max-width: 200px;
+    display: none;
+    line-height: 1.6;
+  }
+  .tooltip .tt-name {
+    font-family: var(--font-display);
+    font-size: 1rem;
+    color: var(--text-bright);
+    margin-bottom: 5px;
+  }
+  .tooltip .tt-row { display: flex; justify-content: space-between; gap: 16px; }
+  .tooltip .tt-val { color: var(--accent); }
+
+  /* ========== RIGHT: SIDE PANEL ========== */
+  .side-panel {
+    display: flex; flex-direction: column;
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  .node-card {
+    flex: 0 0 auto;
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    min-height: 180px;
+  }
+  .node-card .placeholder {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 140px;
+    color: var(--text-dim);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-align: center;
+    gap: 8px;
+  }
+  .node-card .placeholder .icon { font-size: 1.8rem; opacity: 0.3; }
+  .node-card-content { display: none; }
+  .node-card-content.visible { display: block; }
+  .node-card .nc-name {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    color: var(--text-bright);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    margin-bottom: 6px;
+  }
+  .community-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .metric-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 5px;
+    font-size: 0.62rem;
+    color: var(--text-dim);
+  }
+  .metric-row .ml { width: 80px; flex-shrink: 0; letter-spacing: 0.05em; }
+  .metric-bar { flex: 1; height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .metric-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.4s ease; }
+  .metric-val { width: 52px; text-align: right; color: var(--accent); font-size: 0.68rem; }
+  .links-title { font-size: 0.6rem; letter-spacing: 0.15em; color: var(--text-dim); text-transform: uppercase; margin: 10px 0 6px; }
+  .link-item { display: flex; justify-content: space-between; align-items: center; font-size: 0.65rem; padding: 2px 0; border-bottom: 1px solid rgba(58,48,37,0.3); }
+  .link-item .ln { color: var(--text); }
+  .link-item .lw { color: var(--accent); font-size: 0.75rem; }
+
+  /* Legend */
+  .legend-section {
+    flex: 0 0 auto;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-title {
+    font-size: 0.58rem;
+    letter-spacing: 0.25em;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 6px; cursor: pointer; border-radius: 3px;
+    transition: background 0.2s; margin-bottom: 2px;
+    font-size: 0.65rem;
+  }
+  .legend-item:hover { background: var(--bg3); }
+  .legend-item.active { background: var(--bg3); outline: 1px solid var(--border); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { color: var(--text); flex: 1; }
+  .legend-count { color: var(--text-dim); font-size: 0.6rem; }
+
+  /* Ranking */
+  .ranking-section {
+    flex: 1 1 0;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    padding: 12px 16px 0;
+  }
+  .rank-tabs {
+    display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .rank-tab {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); font-family: var(--font-mono); font-size: 0.58rem;
+    letter-spacing: 0.1em; padding: 3px 7px; cursor: pointer;
+    text-transform: uppercase; transition: all 0.2s;
+  }
+  .rank-tab:hover { border-color: var(--accent); color: var(--accent); }
+  .rank-tab.active { background: var(--accent2); border-color: var(--accent); color: var(--text-bright); }
+  .rank-list { overflow-y: auto; flex: 1; padding-right: 4px; padding-bottom: 16px; }
+  .rank-list::-webkit-scrollbar { width: 3px; }
+  .rank-list::-webkit-scrollbar-track { background: var(--bg); }
+  .rank-list::-webkit-scrollbar-thumb { background: var(--border); }
+  .rank-row {
+    display: flex; align-items: center; gap: 7px;
+    padding: 5px 6px; cursor: pointer; border-radius: 3px;
+    transition: background 0.15s; margin-bottom: 1px;
+    font-size: 0.63rem;
+  }
+  .rank-row:hover { background: var(--bg3); }
+  .rank-row.highlighted { background: var(--bg3); outline: 1px solid var(--accent2); }
+  .rank-num { width: 16px; text-align: right; color: var(--text-dim); flex-shrink: 0; font-size: 0.6rem; }
+  .rank-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .rank-name { flex: 1; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-bar { width: 50px; height: 3px; background: var(--bg3); border-radius: 2px; flex-shrink: 0; }
+  .rank-fill { height: 100%; background: var(--accent); border-radius: 2px; }
+  .rank-val { width: 44px; text-align: right; color: var(--accent); font-size: 0.65rem; }
+
+  /* ========== INTERPRETATION SECTION ========== */
+  .interpretation {
+    position: relative; z-index: 5;
+    background: var(--bg2);
+    border-top: 2px solid var(--border);
+    padding: 40px clamp(20px, 5vw, 80px) 60px;
+  }
+  .interp-header {
+    font-family: var(--font-display);
+    font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    margin-bottom: 32px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .interp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 32px 48px;
+  }
+  .interp-block { }
+  .ib-title {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    padding-left: 10px;
+    border-left: 2px solid var(--accent2);
+  }
+  .ib-text {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.75;
+    color: var(--text);
+  }
+  .ib-text strong { color: var(--text-bright); }
+  .ib-text em { color: var(--accent); font-style: normal; }
+  .interp-full { grid-column: 1 / -1; }
+
+  /* scrollbar global */
+  * { scrollbar-width: thin; scrollbar-color: var(--border) var(--bg); }
+
+  /* Polaroid-style note decoration */
+  .photo-note {
+    display: inline-block;
+    background: #f5f0e8;
+    color: #1a1208;
+    font-family: var(--font-display);
+    font-size: 0.75rem;
+    padding: 6px 10px 8px;
+    transform: rotate(-1.5deg);
+    box-shadow: 2px 3px 8px rgba(0,0,0,0.5);
+    margin: 4px 8px 4px 0;
+    display: inline-block;
+  }
+  .photo-note.r { transform: rotate(1.2deg); }
+
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>MEMENTO <span>//</span> 2000</h1>
+    <div class="subtitle">Analiza sieci postaci &nbsp;·&nbsp; Christopher Nolan</div>
+  </div>
+  <div class="stats-pill" id="header-stats">
+    <div><span id="hs-nodes">13</span> węzłów</div>
+    <div><span id="hs-edges">28</span> krawędzi</div>
+    <div>gęstość <span id="hs-density">—</span></div>
+  </div>
+</header>
+
+<div class="main-layout">
+
+  <!-- GRAPH -->
+  <div class="graph-panel">
+    <div class="mode-controls">
+      <button class="mode-btn active" data-mode="degree">Stopień</button>
+      <button class="mode-btn" data-mode="betweenness">Pośrednictwo</button>
+      <button class="mode-btn" data-mode="closeness">Bliskość</button>
+      <button class="mode-btn" data-mode="pagerank">PageRank</button>
+      <button class="mode-btn mode-btn--community" data-mode="community">◉ Społeczności</button>
+      <button class="mode-btn" data-mode="reset">↺ Reset</button>
+    </div>
+    <svg id="graph-svg"></svg>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+
+    <div class="node-card" id="node-card">
+      <div class="placeholder" id="card-placeholder">
+        <div class="icon">◈</div>
+        <div>KLIKNIJ WĘZEŁ<br>ABY ZOBACZYĆ KARTĘ POSTACI</div>
+      </div>
+      <div class="node-card-content" id="card-content">
+        <div class="nc-name" id="nc-name">—</div>
+        <div class="community-tag" id="nc-tag">—</div>
+        <div class="metric-row"><div class="ml">Stopień</div><div class="metric-bar"><div class="metric-fill" id="mf-degree"></div></div><div class="metric-val" id="mv-degree">—</div></div>
+        <div class="metric-row"><div class="ml">Pośrednictwo</div><div class="metric-bar"><div class="metric-fill" id="mf-between"></div></div><div class="metric-val" id="mv-between">—</div></div>
+        <div class="metric-row"><div class="ml">Bliskość</div><div class="metric-bar"><div class="metric-fill" id="mf-close"></div></div><div class="metric-val" id="mv-close">—</div></div>
+        <div class="metric-row"><div class="ml">PageRank</div><div class="metric-bar"><div class="metric-fill" id="mf-pr"></div></div><div class="metric-val" id="mv-pr">—</div></div>
+        <div class="metric-row"><div class="ml">Klasteryzacja</div><div class="metric-bar"><div class="metric-fill" id="mf-cc"></div></div><div class="metric-val" id="mv-cc">—</div></div>
+        <div class="links-title">Najsilniejsze powiązania</div>
+        <div id="nc-links"></div>
+      </div>
+    </div>
+
+    <div class="legend-section">
+      <div class="section-title">Społeczności</div>
+      <div id="legend-items"></div>
+    </div>
+
+    <div class="ranking-section">
+      <div class="section-title">Ranking Postaci</div>
+      <div class="rank-tabs">
+        <button class="rank-tab active" data-rank="degree">Stopień</button>
+        <button class="rank-tab" data-rank="betweenness">Pośred.</button>
+        <button class="rank-tab" data-rank="closeness">Bliskość</button>
+        <button class="rank-tab" data-rank="pagerank">PageRank</button>
+      </div>
+      <div class="rank-list" id="rank-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- INTERPRETATION -->
+<div class="interpretation">
+  <div class="interp-header">HUMANISTYCZNA ANALIZA SIECI — MEMENTO</div>
+  <div class="interp-grid" id="interp-content">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-row"><span>Stopień</span><span class="tt-val" id="tt-deg"></span></div>
+  <div class="tt-row"><span>Pośrednictwo</span><span class="tt-val" id="tt-bet"></span></div>
+  <div class="tt-row"><span>PageRank</span><span class="tt-val" id="tt-pr"></span></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+// ============================================================
+// RAW DATA — parsed from GEXF
+// ============================================================
+const rawNodes = [
+  { id:"LEONARD",    label:"LEONARD",    modClass:0, rawDegree:12, rawBetween:0.5795, rawPR:0.2113, rawSize:40 },
+  { id:"TEDDY",      label:"TEDDY",      modClass:1, rawDegree:7,  rawBetween:0.0568, rawPR:0.1166, rawSize:26.36 },
+  { id:"NATALIE",    label:"NATALIE",    modClass:2, rawDegree:8,  rawBetween:0.0871, rawPR:0.1321, rawSize:29.09 },
+  { id:"DODD",       label:"DODD",       modClass:2, rawDegree:4,  rawBetween:0.0,    rawPR:0.0688, rawSize:18.18 },
+  { id:"SAMMY",      label:"SAMMY",      modClass:0, rawDegree:4,  rawBetween:0.0152, rawPR:0.0724, rawSize:18.18 },
+  { id:"MAN",        label:"MAN",        modClass:2, rawDegree:6,  rawBetween:0.0189, rawPR:0.0993, rawSize:23.64 },
+  { id:"BURT",       label:"BURT",       modClass:1, rawDegree:3,  rawBetween:0.0,    rawPR:0.0547, rawSize:15.45 },
+  { id:"JIMMY",      label:"JIMMY",      modClass:2, rawDegree:4,  rawBetween:0.0,    rawPR:0.0688, rawSize:18.18 },
+  { id:"DOCTOR",     label:"DOCTOR",     modClass:0, rawDegree:2,  rawBetween:0.0,    rawPR:0.0419, rawSize:12.73 },
+  { id:"TATTOOIST",  label:"TATTOOIST",  modClass:1, rawDegree:2,  rawBetween:0.0,    rawPR:0.0407, rawSize:12.73 },
+  { id:"BLONDE",     label:"BLONDE",     modClass:0, rawDegree:1,  rawBetween:0.0,    rawPR:0.0265, rawSize:10 },
+  { id:"MRS. JANKIS",label:"MRS. JANKIS",modClass:0, rawDegree:1,  rawBetween:0.0,    rawPR:0.0265, rawSize:10 },
+  { id:"WAITER",     label:"WAITER",     modClass:2, rawDegree:2,  rawBetween:0.0,    rawPR:0.0405, rawSize:12.73 },
+];
+
+const rawEdges = [
+  { source:"LEONARD", target:"TEDDY",      weight:28 },
+  { source:"LEONARD", target:"NATALIE",    weight:22 },
+  { source:"LEONARD", target:"DODD",       weight:10 },
+  { source:"LEONARD", target:"SAMMY",      weight:7  },
+  { source:"LEONARD", target:"MAN",        weight:6  },
+  { source:"LEONARD", target:"BURT",       weight:6  },
+  { source:"LEONARD", target:"JIMMY",      weight:5  },
+  { source:"LEONARD", target:"DOCTOR",     weight:3  },
+  { source:"LEONARD", target:"TATTOOIST",  weight:3  },
+  { source:"LEONARD", target:"BLONDE",     weight:2  },
+  { source:"LEONARD", target:"MRS. JANKIS",weight:2  },
+  { source:"LEONARD", target:"WAITER",     weight:1  },
+  { source:"TEDDY",   target:"NATALIE",    weight:6  },
+  { source:"TEDDY",   target:"DODD",       weight:5  },
+  { source:"TEDDY",   target:"MAN",        weight:4  },
+  { source:"TEDDY",   target:"BURT",       weight:1  },
+  { source:"TEDDY",   target:"TATTOOIST",  weight:1  },
+  { source:"TEDDY",   target:"JIMMY",      weight:1  },
+  { source:"NATALIE", target:"MAN",        weight:3  },
+  { source:"NATALIE", target:"DODD",       weight:3  },
+  { source:"NATALIE", target:"WAITER",     weight:1  },
+  { source:"NATALIE", target:"BURT",       weight:1  },
+  { source:"NATALIE", target:"JIMMY",      weight:1  },
+  { source:"NATALIE", target:"SAMMY",      weight:1  },
+  { source:"DODD",    target:"MAN",        weight:2  },
+  { source:"SAMMY",   target:"DOCTOR",     weight:4  },
+  { source:"SAMMY",   target:"MAN",        weight:2  },
+  { source:"MAN",     target:"JIMMY",      weight:1  },
+];
+
+// ============================================================
+// SNA CALCULATIONS
+// ============================================================
+
+const nodeMap = {};
+rawNodes.forEach(n => { nodeMap[n.id] = n; });
+
+// Build adjacency
+const adj = {};
+rawNodes.forEach(n => { adj[n.id] = []; });
+rawEdges.forEach(e => {
+  adj[e.source].push({ id: e.target, weight: e.weight });
+  adj[e.target].push({ id: e.source, weight: e.weight });
+});
+
+// 1. Weighted Degree
+rawNodes.forEach(n => {
+  n.weightedDegree = adj[n.id].reduce((s, nb) => s + nb.weight, 0);
+});
+
+// 2. Betweenness Centrality (Brandes BFS)
+function computeBetweenness(nodes, adjMap) {
+  const ids = nodes.map(n => n.id);
+  const n = ids.length;
+  const cb = {};
+  ids.forEach(id => cb[id] = 0);
+  ids.forEach(s => {
+    const stack = [];
+    const pred = {}; ids.forEach(id => pred[id] = []);
+    const sigma = {}; ids.forEach(id => sigma[id] = 0); sigma[s] = 1;
+    const dist = {}; ids.forEach(id => dist[id] = -1); dist[s] = 0;
+    const queue = [s];
+    while (queue.length) {
+      const v = queue.shift();
+      stack.push(v);
+      (adjMap[v] || []).forEach(({id: w}) => {
+        if (dist[w] < 0) { queue.push(w); dist[w] = dist[v] + 1; }
+        if (dist[w] === dist[v] + 1) { sigma[w] += sigma[v]; pred[w].push(v); }
+      });
+    }
+    const delta = {}; ids.forEach(id => delta[id] = 0);
+    while (stack.length) {
+      const w = stack.pop();
+      pred[w].forEach(v => {
+        delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]);
+      });
+      if (w !== s) cb[w] += delta[w];
+    }
+  });
+  const norm = (n - 1) * (n - 2) / 2;
+  ids.forEach(id => { cb[id] = norm > 0 ? cb[id] / norm : 0; });
+  return cb;
+}
+const betweenness = computeBetweenness(rawNodes, adj);
+rawNodes.forEach(n => n.betweenness = betweenness[n.id]);
+
+// 3. Closeness Centrality (BFS)
+function computeCloseness(nodes, adjMap) {
+  const ids = nodes.map(n => n.id);
+  const n = ids.length;
+  const cl = {};
+  ids.forEach(s => {
+    const dist = {}; ids.forEach(id => dist[id] = -1); dist[s] = 0;
+    const queue = [s];
+    while (queue.length) {
+      const v = queue.shift();
+      (adjMap[v] || []).forEach(({id: w}) => {
+        if (dist[w] < 0) { dist[w] = dist[v] + 1; queue.push(w); }
+      });
+    }
+    let total = 0; let reachable = 0;
+    ids.forEach(id => { if (id !== s && dist[id] > 0) { total += dist[id]; reachable++; } });
+    cl[s] = total > 0 ? reachable / total : 0;
+  });
+  return cl;
+}
+const closeness = computeCloseness(rawNodes, adj);
+rawNodes.forEach(n => n.closeness = closeness[n.id]);
+
+// 4. PageRank
+function computePageRank(nodes, adjMap, d=0.85, iters=20) {
+  const ids = nodes.map(n => n.id);
+  const n = ids.length;
+  const pr = {}; ids.forEach(id => pr[id] = 1/n);
+  for (let i=0; i<iters; i++) {
+    const newPR = {};
+    ids.forEach(id => {
+      let sum = 0;
+      (adjMap[id]||[]).forEach(({id: nb}) => {
+        const outDeg = (adjMap[nb]||[]).length;
+        if (outDeg > 0) sum += pr[nb] / outDeg;
+      });
+      newPR[id] = (1-d)/n + d*sum;
+    });
+    ids.forEach(id => pr[id] = newPR[id]);
+  }
+  return pr;
+}
+const pagerank = computePageRank(rawNodes, adj);
+rawNodes.forEach(n => n.pagerank = pagerank[n.id]);
+
+// 5. Local Clustering Coefficient
+function computeClustering(nodes, adjMap) {
+  const cc = {};
+  nodes.forEach(n => {
+    const neighbors = (adjMap[n.id]||[]).map(nb => nb.id);
+    const k = neighbors.length;
+    if (k < 2) { cc[n.id] = 0; return; }
+    let triangles = 0;
+    for (let i=0; i<neighbors.length; i++) {
+      for (let j=i+1; j<neighbors.length; j++) {
+        const ni = neighbors[i], nj = neighbors[j];
+        if ((adjMap[ni]||[]).some(nb => nb.id === nj)) triangles++;
+      }
+    }
+    cc[n.id] = 2 * triangles / (k * (k-1));
+  });
+  return cc;
+}
+const clustering = computeClustering(rawNodes, adj);
+rawNodes.forEach(n => n.clustering = clustering[n.id]);
+
+// 6. Network density
+const nV = rawNodes.length, nE = rawEdges.length;
+const density = 2 * nE / (nV * (nV - 1));
+
+// 7. Community colors
+const communityColors = { 0: '#c8a96e', 1: '#7a9e6a', 2: '#7a5e9e' };
+const communityNames  = {
+  0: 'Świat Leonarda',
+  1: 'Przeszłość & Obsługa',
+  2: 'Świat Natalii'
+};
+rawNodes.forEach(n => { n.community = n.modClass; n.color = communityColors[n.community]; });
+
+// 8. Bridges (simple: edges whose removal disconnects)
+function connected(nodes, adjMap, excludeSrc, excludeTgt) {
+  const ids = nodes.map(n => n.id);
+  const visited = new Set();
+  const queue = [ids[0]];
+  visited.add(ids[0]);
+  while (queue.length) {
+    const v = queue.shift();
+    (adjMap[v]||[]).forEach(({id: w}) => {
+      if (!visited.has(w)) {
+        if ((v===excludeSrc && w===excludeTgt)||(v===excludeTgt && w===excludeSrc)) return;
+        visited.add(w); queue.push(w);
+      }
+    });
+  }
+  return visited.size === ids.length;
+}
+const bridges = rawEdges.filter(e => !connected(rawNodes, adj, e.source, e.target));
+
+// Normalize helpers
+function normalize(arr) {
+  const mn = Math.min(...arr), mx = Math.max(...arr);
+  if (mx === mn) return arr.map(() => 0.5);
+  return arr.map(v => (v - mn) / (mx - mn));
+}
+const degVals    = rawNodes.map(n => n.weightedDegree);
+const betVals    = rawNodes.map(n => n.betweenness);
+const clVals     = rawNodes.map(n => n.closeness);
+const prVals     = rawNodes.map(n => n.pagerank);
+const ccVals     = rawNodes.map(n => n.clustering);
+const normDeg    = normalize(degVals);
+const normBet    = normalize(betVals);
+const normCl     = normalize(clVals);
+const normPR     = normalize(prVals);
+const normCC     = normalize(ccVals);
+rawNodes.forEach((n,i) => {
+  n.normDegree   = normDeg[i];
+  n.normBetween  = normBet[i];
+  n.normClose    = normCl[i];
+  n.normPR       = normPR[i];
+  n.normCC       = normCC[i];
+});
+
+// Max values for display
+const maxDeg = Math.max(...degVals);
+const maxBet = Math.max(...betVals);
+const maxCl  = Math.max(...clVals);
+const maxPR  = Math.max(...prVals);
+const maxCC  = Math.max(...ccVals);
+
+// ============================================================
+// UPDATE HEADER
+// ============================================================
+document.getElementById('hs-nodes').textContent = nV;
+document.getElementById('hs-edges').textContent = nE;
+document.getElementById('hs-density').textContent = density.toFixed(3);
+
+// ============================================================
+// D3 FORCE GRAPH
+// ============================================================
+const svg = d3.select('#graph-svg');
+const container = document.querySelector('.graph-panel');
+let W = container.clientWidth, H = container.clientHeight;
+
+const defs = svg.append('defs');
+// glow filter
+const filter = defs.append('filter').attr('id','glow').attr('x','-30%').attr('y','-30%').attr('width','160%').attr('height','160%');
+filter.append('feGaussianBlur').attr('stdDeviation','3').attr('result','blur');
+const feMerge = filter.append('feMerge');
+feMerge.append('feMergeNode').attr('in','blur');
+feMerge.append('feMergeNode').attr('in','SourceGraphic');
+
+const g = svg.append('g');
+
+// Community hull layer (drawn BELOW links and nodes)
+const hullLayer = g.append('g').attr('class','hulls');
+const hullColors = { 0:'#c8a96e', 1:'#7a9e6a', 2:'#7a5e9e' };
+
+// Community cluster centers (will be computed relative to W/H)
+const clusterCenters = {
+  0: { x: 0, y: 0 },
+  1: { x: 0, y: 0 },
+  2: { x: 0, y: 0 }
+};
+function updateClusterCenters() {
+  clusterCenters[0] = { x: W * 0.62, y: H * 0.38 };
+  clusterCenters[1] = { x: W * 0.30, y: H * 0.72 };
+  clusterCenters[2] = { x: W * 0.25, y: H * 0.30 };
+}
+updateClusterCenters();
+
+let communityMode = false;
+
+function drawHulls() {
+  if (!communityMode) { hullLayer.selectAll('*').remove(); return; }
+  const groups = {0:[], 1:[], 2:[]};
+  simNodes.forEach(n => { if (n.x != null) groups[n.community].push([n.x, n.y]); });
+
+  hullLayer.selectAll('path').remove();
+  hullLayer.selectAll('text.hull-label').remove();
+
+  Object.entries(groups).forEach(([c, pts]) => {
+    if (pts.length < 2) return;
+    const color = hullColors[c];
+    let pathData;
+    if (pts.length === 2) {
+      // draw a pill shape manually
+      const dx = pts[1][0]-pts[0][0], dy = pts[1][1]-pts[0][1];
+      const len = Math.sqrt(dx*dx+dy*dy)||1;
+      pathData = `M${pts[0][0]},${pts[0][1]} L${pts[1][0]},${pts[1][1]}`;
+    } else {
+      const hull = d3.polygonHull(pts);
+      if (!hull) return;
+      // pad hull outward
+      const cx = d3.mean(hull, p=>p[0]), cy = d3.mean(hull, p=>p[1]);
+      const padded = hull.map(p => {
+        const dx = p[0]-cx, dy = p[1]-cy;
+        const len = Math.sqrt(dx*dx+dy*dy)||1;
+        const pad = 46;
+        return [p[0]+dx/len*pad, p[1]+dy/len*pad];
+      });
+      pathData = `M${padded.map(p=>p.join(',')).join('L')}Z`;
+    }
+    hullLayer.append('path')
+      .attr('d', pathData)
+      .attr('fill', color)
+      .attr('fill-opacity', 0.09)
+      .attr('stroke', color)
+      .attr('stroke-opacity', 0.45)
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '6,3')
+      .style('filter', `drop-shadow(0 0 12px ${color}66)`);
+
+    // community label on hull
+    const cx2 = d3.mean(pts, p=>p[0]), cy2 = d3.mean(pts, p=>p[1]);
+    const topY = Math.min(...pts.map(p=>p[1]));
+    hullLayer.append('text')
+      .attr('class','hull-label')
+      .attr('x', cx2)
+      .attr('y', topY - 52)
+      .attr('text-anchor','middle')
+      .attr('fill', color)
+      .attr('fill-opacity', 0.75)
+      .attr('font-family', "'Special Elite', cursive")
+      .attr('font-size', '11px')
+      .attr('letter-spacing', '0.2em')
+      .attr('pointer-events','none')
+      .text(communityNames[c].toUpperCase());
+  });
+}
+
+// Link color in community mode: same-community = community color, cross = muted sepia
+function getLinkColor(d) {
+  if (!communityMode) return '#c8a96e';
+  const sc = (d.source.community ?? d.source), tc = (d.target.community ?? d.target);
+  // resolve if objects
+  const sc2 = typeof sc === 'object' ? sc.community : sc;
+  const tc2 = typeof tc === 'object' ? tc.community : tc;
+  if (sc2 === tc2) return hullColors[sc2];
+  return '#4a3f32';
+}
+function getLinkOpacity(d) {
+  if (!communityMode) return opScale(d.weight);
+  const sc = typeof d.source === 'object' ? d.source.community : d.source;
+  const tc = typeof d.target === 'object' ? d.target.community : d.target;
+  return sc === tc ? Math.min(0.85, opScale(d.weight) * 1.5) : 0.12;
+}
+function getLinkWidth(d) {
+  if (!communityMode) return wScale(d.weight);
+  const sc = typeof d.source === 'object' ? d.source.community : d.source;
+  const tc = typeof d.target === 'object' ? d.target.community : d.target;
+  return sc === tc ? wScale(d.weight) * 1.4 : wScale(d.weight) * 0.5;
+}
+
+function applyLinkStyles(transition) {
+  const sel = transition ? linkSel.transition().duration(500) : linkSel;
+  sel
+    .attr('stroke', d => getLinkColor(d))
+    .attr('stroke-width', d => getLinkWidth(d))
+    .attr('stroke-opacity', d => getLinkOpacity(d));
+}
+
+function applyNodeStyles(transition) {
+  const sel = transition ? circles.transition().duration(500) : circles;
+  sel
+    .attr('stroke', d => communityMode ? d.color : d.color)
+    .attr('stroke-width', d => communityMode ? 2.5 : 1.5)
+    .attr('fill-opacity', d => communityMode ? 0.92 : 0.88);
+}
+
+const minW = Math.min(...rawEdges.map(e=>e.weight)), maxW = Math.max(...rawEdges.map(e=>e.weight));
+const wScale = d3.scaleLinear().domain([minW,maxW]).range([0.5,5]);
+const opScale = d3.scaleLinear().domain([minW,maxW]).range([0.18,0.75]);
+
+let currentMode = 'degree';
+function getRadius(n) {
+  const base = { degree:n.normDegree, betweenness:n.normBetween, closeness:n.normClose, pagerank:n.normPR }[currentMode] ?? n.normDegree;
+  return 8 + base * 26;
+}
+
+// Build simulation data (deep copy)
+const simNodes = rawNodes.map(n => ({...n}));
+const simEdges = rawEdges.map(e => ({...e}));
+
+const simulation = d3.forceSimulation(simNodes)
+  .force('link', d3.forceLink(simEdges).id(d=>d.id).distance(d => 80 + 200 / Math.max(d.weight,1)))
+  .force('charge', d3.forceManyBody().strength(-320))
+  .force('center', d3.forceCenter(W/2, H/2))
+  .force('collision', d3.forceCollide().radius(d => getRadius(d) + 10));
+
+const linkSel = g.append('g').attr('class','links')
+  .selectAll('line')
+  .data(simEdges)
+  .enter().append('line')
+  .attr('stroke','#c8a96e')
+  .attr('stroke-width', d => wScale(d.weight))
+  .attr('stroke-opacity', d => opScale(d.weight));
+
+const nodeSel = g.append('g').attr('class','nodes')
+  .selectAll('g.node-g')
+  .data(simNodes)
+  .enter().append('g')
+  .attr('class','node-g')
+  .style('cursor','pointer')
+  .call(d3.drag()
+    .on('start', (event,d) => { if (!event.active) simulation.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+    .on('drag',  (event,d) => { d.fx=event.x; d.fy=event.y; })
+    .on('end',   (event,d) => { if (!event.active) simulation.alphaTarget(0); d.fx=null; d.fy=null; })
+  );
+
+const circles = nodeSel.append('circle')
+  .attr('r', d => getRadius(d))
+  .attr('fill', d => d.color)
+  .attr('fill-opacity', 0.88)
+  .attr('stroke', d => d.color)
+  .attr('stroke-width', 1.5)
+  .attr('filter', d => d.id==='LEONARD' ? 'url(#glow)' : null);
+
+const labels = nodeSel.append('text')
+  .text(d => d.label)
+  .attr('text-anchor','middle')
+  .attr('dominant-baseline','middle')
+  .attr('fill', '#f0e6cc')
+  .attr('font-family', "'Special Elite', cursive")
+  .attr('font-size', d => Math.max(8, getRadius(d) * 0.55))
+  .attr('pointer-events','none')
+  .style('text-shadow','0 1px 3px #000, 0 0 8px #000');
+
+simulation.on('tick', () => {
+  linkSel
+    .attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+    .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+  nodeSel.attr('transform', d => `translate(${d.x},${d.y})`);
+  if (communityMode) drawHulls();
+});
+
+// Auto zoom after 2.5s
+setTimeout(() => {
+  simulation.alphaTarget(0);
+  const bounds = g.node().getBBox();
+  if (bounds.width === 0) return;
+  const pad = 40;
+  const scale = Math.min((W - pad*2)/bounds.width, (H - pad*2)/bounds.height, 1.8);
+  const tx = W/2 - scale*(bounds.x + bounds.width/2);
+  const ty = H/2 - scale*(bounds.y + bounds.height/2);
+  svg.transition().duration(900).call(
+    zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale)
+  );
+}, 2600);
+
+// Zoom
+const zoom = d3.zoom().scaleExtent([0.2, 4]).on('zoom', e => g.attr('transform', e.transform));
+svg.call(zoom);
+
+// Resize
+window.addEventListener('resize', () => {
+  W = container.clientWidth; H = container.clientHeight;
+  updateClusterCenters();
+  simulation.force('center', d3.forceCenter(W/2, H/2));
+  simulation.alpha(0.2).restart();
+});
+
+// ============================================================
+// MODE BUTTONS
+// ============================================================
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const mode = btn.dataset.mode;
+
+    if (mode === 'reset') {
+      currentMode = 'degree';
+      communityMode = false;
+      document.querySelector('[data-mode="degree"]').classList.add('active');
+      btn.classList.remove('active');
+      // Remove cluster forces
+      simulation.force('cluster-x', null).force('cluster-y', null).force('cluster-collide', null);
+      simulation.force('charge', d3.forceManyBody().strength(-320));
+      simulation.force('center', d3.forceCenter(W/2, H/2));
+      drawHulls();
+      applyLinkStyles(true);
+      applyNodeStyles(true);
+    } else if (mode === 'community') {
+      currentMode = 'degree';
+      communityMode = true;
+      // Add strong cluster-centering forces
+      simulation.force('cluster-x', d3.forceX(d => clusterCenters[d.community].x).strength(0.28));
+      simulation.force('cluster-y', d3.forceY(d => clusterCenters[d.community].y).strength(0.28));
+      simulation.force('cluster-collide', d3.forceCollide().radius(d => getRadius(d) + 14));
+      simulation.force('charge', d3.forceManyBody().strength(-180));
+      simulation.force('center', null);
+      applyLinkStyles(true);
+      applyNodeStyles(true);
+    } else {
+      currentMode = mode;
+      communityMode = false;
+      simulation.force('cluster-x', null).force('cluster-y', null).force('cluster-collide', null);
+      simulation.force('charge', d3.forceManyBody().strength(-320));
+      simulation.force('center', d3.forceCenter(W/2, H/2));
+      drawHulls();
+      applyLinkStyles(true);
+      applyNodeStyles(true);
+    }
+
+    circles.transition().duration(500).attr('r', d => getRadius(d));
+    labels.transition().duration(500).attr('font-size', d => Math.max(8, getRadius(d)*0.55));
+    simulation.force('collision', communityMode ? null : d3.forceCollide().radius(d => getRadius(d)+10));
+    simulation.alpha(0.55).restart();
+  });
+});
+
+// ============================================================
+// TOOLTIP
+// ============================================================
+const tooltip = document.getElementById('tooltip');
+nodeSel
+  .on('mouseover', (event, d) => {
+    document.getElementById('tt-name').textContent = d.label;
+    document.getElementById('tt-deg').textContent  = d.weightedDegree;
+    document.getElementById('tt-bet').textContent  = d.betweenness.toFixed(3);
+    document.getElementById('tt-pr').textContent   = d.pagerank.toFixed(4);
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.clientX + 14) + 'px';
+    tooltip.style.top  = (event.clientY - 10) + 'px';
+  })
+  .on('mousemove', event => {
+    tooltip.style.left = (event.clientX + 14) + 'px';
+    tooltip.style.top  = (event.clientY - 10) + 'px';
+  })
+  .on('mouseout', () => { tooltip.style.display = 'none'; });
+
+// ============================================================
+// NODE CLICK — highlight + card
+// ============================================================
+let selectedId = null;
+nodeSel.on('click', (event, d) => {
+  event.stopPropagation();
+  selectedId = d.id;
+  highlightNode(d);
+  showCard(d);
+  highlightRankRow(d.id);
+});
+
+svg.on('click', () => {
+  selectedId = null;
+  nodeSel.select('circle').attr('opacity',1).attr('stroke-width',1.5).attr('stroke',d=>d.color);
+  linkSel.attr('opacity',1);
+  document.getElementById('card-content').classList.remove('visible');
+  document.getElementById('card-placeholder').style.display='flex';
+  document.querySelectorAll('.rank-row').forEach(r=>r.classList.remove('highlighted'));
+});
+
+function highlightNode(d) {
+  const neighborIds = new Set(adj[d.id].map(nb=>nb.id));
+  neighborIds.add(d.id);
+  nodeSel.select('circle')
+    .attr('opacity', nd => neighborIds.has(nd.id) ? 1 : 0.07)
+    .attr('stroke-width', nd => nd.id===d.id ? 3 : 1.5)
+    .attr('stroke', nd => nd.id===d.id ? '#f0e6cc' : nd.color);
+  linkSel.attr('opacity', le => {
+    const s = le.source.id||le.source, t = le.target.id||le.target;
+    return (s===d.id||t===d.id) ? 1 : 0.04;
+  });
+}
+
+function showCard(d) {
+  document.getElementById('card-placeholder').style.display='none';
+  const cc = document.getElementById('card-content');
+  cc.classList.add('visible');
+  document.getElementById('nc-name').textContent = d.label;
+  const tag = document.getElementById('nc-tag');
+  tag.textContent = communityNames[d.community];
+  tag.style.background = d.color + '33';
+  tag.style.color = d.color;
+  tag.style.border = `1px solid ${d.color}66`;
+  setBar('degree',  d.normDegree,  d.weightedDegree);
+  setBar('between', d.normBetween, d.betweenness.toFixed(4));
+  setBar('close',   d.normClose,   d.closeness.toFixed(4));
+  setBar('pr',      d.normPR,      d.pagerank.toFixed(5));
+  setBar('cc',      d.normCC,      d.clustering.toFixed(4));
+  // Links
+  const links = rawEdges
+    .filter(e => e.source===d.id||e.target===d.id)
+    .map(e => ({ name: e.source===d.id?e.target:e.source, weight:e.weight }))
+    .sort((a,b)=>b.weight-a.weight).slice(0,5);
+  const linksEl = document.getElementById('nc-links');
+  linksEl.innerHTML = links.map(l => {
+    const nb = nodeMap[l.name];
+    return `<div class="link-item"><span class="ln" style="color:${nb?nb.color:'#ccc'}">${l.name}</span><span class="lw">${l.weight}</span></div>`;
+  }).join('');
+}
+function setBar(key, norm, val) {
+  document.getElementById(`mf-${key}`).style.width = (norm*100)+'%';
+  document.getElementById(`mv-${key}`).textContent = val;
+}
+
+// ============================================================
+// LEGEND
+// ============================================================
+const legendEl = document.getElementById('legend-items');
+let communityFilter = null;
+[0,1,2].forEach(c => {
+  const count = rawNodes.filter(n=>n.community===c).length;
+  const div = document.createElement('div');
+  div.className = 'legend-item';
+  div.innerHTML = `<div class="legend-dot" style="background:${communityColors[c]}"></div>
+    <span class="legend-name">${communityNames[c]}</span>
+    <span class="legend-count">${count}</span>`;
+  div.addEventListener('click', () => {
+    if (communityFilter===c) { communityFilter=null; div.classList.remove('active'); updateRankFilter(); }
+    else {
+      communityFilter=c;
+      document.querySelectorAll('.legend-item').forEach(el=>el.classList.remove('active'));
+      div.classList.add('active');
+      updateRankFilter();
+    }
+  });
+  legendEl.appendChild(div);
+});
+
+// ============================================================
+// RANKING
+// ============================================================
+let currentRankMetric = 'degree';
+document.querySelectorAll('.rank-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.rank-tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    currentRankMetric = tab.dataset.rank;
+    renderRanking();
+  });
+});
+
+function getRankValue(n, metric) {
+  return { degree:n.weightedDegree, betweenness:n.betweenness, closeness:n.closeness, pagerank:n.pagerank }[metric] ?? n.weightedDegree;
+}
+function getRankNorm(n, metric) {
+  return { degree:n.normDegree, betweenness:n.normBetween, closeness:n.normClose, pagerank:n.normPR }[metric] ?? n.normDegree;
+}
+
+function renderRanking() {
+  const list = document.getElementById('rank-list');
+  let nodes = communityFilter !== null ? rawNodes.filter(n=>n.community===communityFilter) : [...rawNodes];
+  nodes.sort((a,b) => getRankValue(b,currentRankMetric) - getRankValue(a,currentRankMetric));
+  nodes = nodes.slice(0,15);
+  const maxVal = Math.max(...nodes.map(n=>getRankValue(n,currentRankMetric)));
+  list.innerHTML = nodes.map((n,i) => {
+    const val = getRankValue(n,currentRankMetric);
+    const norm = maxVal > 0 ? val/maxVal : 0;
+    const displayVal = currentRankMetric==='degree' ? val : val.toFixed(4);
+    return `<div class="rank-row" data-id="${n.id}">
+      <span class="rank-num">${i+1}</span>
+      <span class="rank-dot" style="background:${n.color}"></span>
+      <span class="rank-name">${n.label}</span>
+      <div class="rank-bar"><div class="rank-fill" style="width:${norm*100}%"></div></div>
+      <span class="rank-val">${displayVal}</span>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.rank-row').forEach(row => {
+    row.addEventListener('click', () => {
+      const id = row.dataset.id;
+      const d = simNodes.find(n=>n.id===id);
+      if (d) { selectedId=id; highlightNode(d); showCard(rawNodes.find(n=>n.id===id)); highlightRankRow(id); }
+    });
+  });
+  if (selectedId) highlightRankRow(selectedId);
+}
+
+function updateRankFilter() { renderRanking(); }
+
+function highlightRankRow(id) {
+  document.querySelectorAll('.rank-row').forEach(r=>r.classList.remove('highlighted'));
+  const row = document.querySelector(`.rank-row[data-id="${id}"]`);
+  if (row) row.classList.add('highlighted');
+}
+
+renderRanking();
+
+// ============================================================
+// INTERPRETATION TEXT
+// ============================================================
+const interp = document.getElementById('interp-content');
+interp.innerHTML = `
+<div class="interp-block">
+  <div class="ib-title">§1 — Podstawowe Parametry Sieci</div>
+  <div class="ib-text">
+    Graf liczy <strong>${nV} węzłów</strong> (postaci) i <strong>${nE} krawędzi</strong> (relacji). Gęstość sieci wynosi <em>${density.toFixed(3)}</em>, co oznacza, że wypełniona jest w ok. <em>${(density*100).toFixed(1)}%</em> możliwych połączeń. Jest to sieć umiarkowanie gęsta jak na kameralny thriller psychologiczny — większość postaci ma bezpośredni kontakt z protagonistą, lecz brak gęstej sieci wzajemnych relacji peryferyjnych. Graf jest w pełni spójny (jeden składnik), co odzwierciedla strukturę narracyjną: wszystkie wątki przebiegają przez Leonarda.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§2 — Centralność Stopnia (Weighted Degree)</div>
+  <div class="ib-text">
+    <strong>Leonard (${rawNodes.find(n=>n.id==='LEONARD').weightedDegree})</strong> dominuje absolutnie — jego suma wag wynosi ponad 2× więcej niż drugiej postaci, co odpowiada narracyjnemu centrum: wszystkie sceny filtruję przez jego amnezję. <strong>Natalie (${rawNodes.find(n=>n.id==='NATALIE').weightedDegree})</strong> i <strong>Teddy (${rawNodes.find(n=>n.id==='TEDDY').weightedDegree})</strong> zajmują odległe miejsca — jako dwie osoby, które aktywnie kształtują (i manipulują) jego rzeczywistość. <strong>MAN (${rawNodes.find(n=>n.id==='MAN').weightedDegree})</strong> pojawia się zaskakująco wysoko — anonimowość tej postaci kontrastuje z jej silną obecnością sieciową.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§3 — Centralność Pośrednictwa (Betweenness)</div>
+  <div class="ib-text">
+    <strong>Leonard (${rawNodes.find(n=>n.id==='LEONARD').betweenness.toFixed(3)})</strong> osiąga ekstremalnie wysoką wartość — niemalże wszystkie najkrótsze ścieżki między innymi parami postaci muszą przez niego przechodzić. Jest to strukturalny wyraz amnezji jako narracyjnego narzędzia: żadne dwie postaci nie komunikują się „za jego plecami" w sposób widoczny widzowi. <strong>Natalie (${rawNodes.find(n=>n.id==='NATALIE').betweenness.toFixed(3)})</strong> plasuje się na miejscu 2. jako broker informacji między światem Dodda a Leonardem. <strong>Sammy Jankis</strong>, mimo niskiego stopnia, ma niezerowe betweenness — łączy narrację o przeszłości z teraźniejszością bohatera.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§4 — Centralność Bliskości (Closeness)</div>
+  <div class="ib-text">
+    <strong>Leonard</strong> jest najbliżej wszystkich pozostałych — może dotrzeć do każdej postaci w minimalnej liczbie kroków. Paradoks: man z totalną amnezją jest topologicznie „w centrum" całej sieci społecznej. <strong>Natalie</strong> i <strong>MAN</strong> zajmują miejsca 2-3. Postaci peryferyjne jak <strong>BLONDE, MRS. JANKIS</strong> mają closeness poniżej średniej — funkcjonują jako lokalne wspomnienia dostępne jedynie poprzez Leonarda.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§5 — PageRank</div>
+  <div class="ib-text">
+    Wyniki PageRank potwierdzają hierarchię, lecz ujawniają subtelności: <strong>Natalie</strong> ma wyższy PageRank niż Teddy względem swej bezwzględnej pozycji w stopniu — jej sąsiedzi (Dodd, MAN, Waiter) tworzą gęstszy lokalny klaster, co algorytm premiuje. <strong>MAN</strong> jako anonimowa postać o 6 krawędziach zaskakuje wartością PageRank — to strukturalny sygnał, że jest centralnym węzłem jednej ze społeczności.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§6 — Struktura Społeczności</div>
+  <div class="ib-text">
+    Algorytm modularności wykrył <strong>3 społeczności</strong>:
+    <br><br>
+    <span style="color:${communityColors[0]}">■ Świat Leonarda</span> — Leonard, Sammy Jankis, Mrs. Jankis, Doctor, Blonde: rdzeń subiektywny bohatera, postacie powiązane z jego przeszłością i autonarracją.
+    <br><br>
+    <span style="color:${communityColors[1]}">■ Przeszłość &amp; Obsługa</span> — Teddy, Burt, Tattooist: ludzie świadczący usługi Leonardowi lub obserwujący go z zewnątrz bez głębokiej narracyjnej ekspozycji.
+    <br><br>
+    <span style="color:${communityColors[2]}">■ Świat Natalii</span> — Natalie, Dodd, MAN, Jimmy, Waiter: sieć lokalnych interesów i zagrożeń, w której Natalie jest węzłem centralnym.
+  </div>
+</div>
+
+<div class="interp-block">
+  <div class="ib-title">§7 — Mosty Strukturalne i Anomalie</div>
+  <div class="ib-text">
+    ${bridges.length > 0
+      ? `Zidentyfikowano <strong>${bridges.length} most(ów)</strong>: ${bridges.map(b=>`<em>${b.source}–${b.target}</em>`).join(', ')}. Ich usunięcie rozspójniłoby graf.`
+      : `Graf jest <strong>2-krawędziowo spójny</strong> — nie ma mostów, co oznacza odporność narracyjną sieci.`}
+    <br><br>
+    <strong>Kluczowa anomalia:</strong> SAMMY JANKIS ma betweenness > 0 mimo zaledwie 4 krawędzi — to postać funkcjonująca jako „most pamięci" między historią klinicaną (DOCTOR) a główną narracją. W filmie Sammy jest alter ego Leonarda, co sieciowo objawia się jako rola łącznika dwóch światów.
+    <br><br>
+    <strong>Wysoki clustering coefficient</strong> MAN, DODD i JIMMY (tworzący trójkąt ze sobą i Natalią) wskazuje na „zamknięte środowisko przestępczości", z którym Leonard ma kontakt, lecz do którego nie należy.
+  </div>
+</div>
+
+<div class="interp-block interp-full">
+  <div class="ib-title">§8 — Propozycje Dalszych Analiz</div>
+  <div class="ib-text">
+    <strong>1. Analiza temporalna (chronologiczna vs. filmowa):</strong> Krawędziom można przypisać znaczniki czasowe odpowiadające dwóm porządkom czasowym filmu — czarnobiałemu (chronologicznemu) i kolorowemu (odwróconemu) — i zbadać, jak sieć zmienia się między tymi osią.
+    <br><br>
+    <strong>2. Analiza asymetrii wiedzy:</strong> Wagi krawędzi w obecnym grafie odzwierciedlają współwystępowanie, lecz nie kierunkowość wiedzy. Graf skierowany z atrybutem „kto wie co o kim" ujawniłby strukturę epistemiczną — kto manipuluje, a kto jest manipulowany.
+    <br><br>
+    <strong>3. Ego-network Leonarda przez pryzmat notatek:</strong> Każda tatua żowa adnotacja lub notatka Leonarda mogłaby stać się węzłem-artefaktem w grafie bipartitowym (postaci ↔ artefakty), ujawniając, które obiekty pamięci pośredniczą w relacjach.
+    <br><br>
+    <strong>4. Analiza porównawcza z powieścią/scenariuszem:</strong> Christopher Nolan bazował na opowiadaniu brata Jonathana. Porównanie sieci postaci między obiema wersjami ujawniłoby, jakie relacje zostały dodane lub usunięte w procesie adaptacji.
+    <br><br>
+    <strong>5. Modelowanie rozprzestrzeniania dezinformacji:</strong> Symulacja SIR (Susceptible-Infected-Recovered) na tej sieci z Leonard jako węzłem startowym pozwoliłaby zbadać, jak szybko fałszywe przekonania („Sammy Jankis był prawdziwą osobą") kolonizują całą sieć narracyjną.
+  </div>
+</div>
+`;
+
+</script>
+</body>
+</html>
